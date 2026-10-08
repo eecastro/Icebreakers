@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2E6F95">
+  <title>Icebreaker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧊</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #2E6F95;
+      --ink: #FFFFFF;
+      --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      display: grid;
+      place-items: center;
+      padding: 6vh 6vw;
+    }
+
+    #question {
+      margin: 0;
+      max-width: 20ch;
+      text-align: center;
+      font-weight: 700;
+      font-size: clamp(2.25rem, 6.5vw, 6rem);
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+      text-wrap: balance;
+    }
+
+    /* Longer questions get a smaller size and a wider measure so they still fit one screen */
+    #question[data-length="long"]   { font-size: clamp(1.9rem, 5vw, 4.5rem);   max-width: 26ch; }
+    #question[data-length="longer"] { font-size: clamp(1.6rem, 3.8vw, 3.4rem); max-width: 32ch; }
+    #question[data-length="note"]   { font-size: clamp(1.25rem, 2.6vw, 2rem);  max-width: 34ch; font-weight: 400; line-height: 1.4; }
+
+    #question.fading { opacity: 0; }
+
+    footer {
+      display: flex;
+      justify-content: center;
+      padding: 0 1.5rem 6vh;
+    }
+
+    button {
+      font: inherit;
+      font-weight: 700;
+      font-size: 1.125rem;
+      color: var(--bg);
+      background-color: var(--ink);
+      border: 0;
+      border-radius: 999px;
+      padding: 0.85em 1.9em;
+      cursor: pointer;
+    }
+    button:hover  { transform: translateY(-1px); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+
+    /* Transitions switch on only after the first color is set, so the page doesn't flash on load */
+    .animate body   { transition: background-color 0.6s ease, color 0.6s ease; }
+    .animate button { transition: transform 0.15s ease, background-color 0.6s ease, color 0.6s ease; }
+    .animate #question { transition: opacity 0.3s ease; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .animate body, .animate button, .animate #question { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 id="question" aria-live="polite"></h1>
+  </main>
+  <footer>
+    <button id="next" type="button">New question</button>
+  </footer>
+
+  <script>
+    // ---- Settings you can change -------------------------------------------
+
+    // Files to read questions from (one question per line).
+    // Use a relative path if the .txt sits next to this page, or a full URL, e.g.
+    // 'https://raw.githubusercontent.com/YOUR-USER/YOUR-REPO/main/questions.txt'
+    // List several files to combine them.
+    const QUESTION_FILES = ['questions.txt'];
+
+    // Background / text color pairs. Each pair is checked for readable contrast.
+    const PALETTE = [
+      ['#2E6F95', '#FFFFFF'], // harbor blue
+      ['#3D7A5A', '#FFFFFF'], // fern
+      ['#E8B04B', '#2A1F0A'], // mustard
+      ['#C8553D', '#FFFFFF'], // brick
+      ['#6B5CA5', '#FFFFFF'], // violet
+      ['#F2A7A0', '#3A1512'], // salmon
+      ['#8FB8A8', '#12261F'], // sage
+      ['#1F4E5F', '#F4F7F2'], // deep teal
+      ['#B5C99A', '#1E2A10'], // pistachio
+      ['#A23E48', '#FFFFFF'], // raspberry
+      ['#7FA7D9', '#0E2238'], // sky
+      ['#F3C9A0', '#3B2210'], // apricot
+    ];
+
+    // ---- Page logic --------------------------------------------------------
+
+    const root = document.documentElement;
+    const questionEl = document.getElementById('question');
+    const button = document.getElementById('next');
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    let questions = [];
+    let lastQuestion = -1;
+    let lastColor = -1;
+
+    // Random index that never repeats the previous one (when there's a choice)
+    function pickIndex(count, avoid) {
+      if (count <= 1) return 0;
+      let i;
+      do { i = Math.floor(Math.random() * count); } while (i === avoid);
+      return i;
+    }
+
+    function applyRandomColor() {
+      lastColor = pickIndex(PALETTE.length, lastColor);
+      const [bg, ink] = PALETTE[lastColor];
+      root.style.setProperty('--bg', bg);
+      root.style.setProperty('--ink', ink);
+      themeMeta.setAttribute('content', bg);
+    }
+
+    function lengthClass(text) {
+      if (text.length > 140) return 'longer';
+      if (text.length > 70) return 'long';
+      return '';
+    }
+
+    function setQuestion(text, kind) {
+      questionEl.textContent = text;
+      questionEl.dataset.length = kind ?? lengthClass(text);
+    }
+
+    function showNext() {
+      applyRandomColor();
+      if (!questions.length) return;
+
+      lastQuestion = pickIndex(questions.length, lastQuestion);
+      const text = questions[lastQuestion];
+
+      if (!root.classList.contains('animate') || reduceMotion.matches) {
+        setQuestion(text);
+        return;
+      }
+      questionEl.classList.add('fading');
+      setTimeout(() => {
+        setQuestion(text);
+        questionEl.classList.remove('fading');
+      }, 300);
+    }
+
+    async function loadQuestions() {
+      const texts = await Promise.all(QUESTION_FILES.map(async (file) => {
+        const response = await fetch(file, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`${file} returned HTTP ${response.status}`);
+        return response.text();
+      }));
+      return texts
+        .join('\n')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#')); // skip blanks and # comments
+    }
+
+    async function start() {
+      applyRandomColor();
+      try {
+        questions = await loadQuestions();
+        if (!questions.length) {
+          setQuestion('The questions file is empty. Add one question per line to questions.txt.', 'note');
+          return;
+        }
+        lastQuestion = pickIndex(questions.length, -1);
+        setQuestion(questions[lastQuestion]);
+      } catch (err) {
+        console.error(err);
+        const message = location.protocol === 'file:'
+          ? 'This page can’t read questions.txt when opened straight from your computer. Upload index.html and questions.txt to your website or GitHub Pages and open it from there.'
+          : 'Couldn’t load the questions. Check that questions.txt is in the same folder as this page (or that the URL in QUESTION_FILES is correct).';
+        setQuestion(message, 'note');
+      } finally {
+        // Turn transitions on after the first paint
+        requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('animate')));
+      }
+    }
+
+    button.addEventListener('click', showNext);
+
+    // Keyboard and presentation-clicker shortcuts: Space, →, Page Down, or N
+    document.addEventListener('keydown', (e) => {
+      if (e.target === button && (e.key === ' ' || e.key === 'Enter')) return; // button handles these itself
+      if ([' ', 'ArrowRight', 'PageDown', 'n', 'N'].includes(e.key)) {
+        e.preventDefault();
+        showNext();
+      }
+    });
+
+    start();
+  </script>
+</body>
+</html>
