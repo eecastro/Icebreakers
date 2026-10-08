@@ -96,10 +96,9 @@
     // ---- Settings you can change -------------------------------------------
 
     // Files to read questions from (one question per line).
-    // Use a relative path if the .txt sits next to this page, or a full URL, e.g.
-    // 'https://raw.githubusercontent.com/YOUR-USER/YOUR-REPO/main/questions.txt'
-    // List several files to combine them.
-    const QUESTION_FILES = ['questions.txt'];
+    // These sit next to this page in the eecastro/icebreakers repo.
+    // List several files to combine them, e.g. ['icebreaker-questions.txt', 'more.txt']
+    const QUESTION_FILES = ['icebreaker-questions.txt'];
 
     // Background / text color pairs. Each pair is checked for readable contrast.
     const PALETTE = [
@@ -192,7 +191,7 @@
       try {
         questions = await loadQuestions();
         if (!questions.length) {
-          setQuestion('The questions file is empty. Add one question per line to questions.txt.', 'note');
+          setQuestion('The questions file is empty. Add one question per line to icebreaker-questions.txt.', 'note');
           return;
         }
         lastQuestion = pickIndex(questions.length, -1);
@@ -200,8 +199,8 @@
       } catch (err) {
         console.error(err);
         const message = location.protocol === 'file:'
-          ? 'This page can’t read questions.txt when opened straight from your computer. Upload index.html and questions.txt to your website or GitHub Pages and open it from there.'
-          : 'Couldn’t load the questions. Check that questions.txt is in the same folder as this page (or that the URL in QUESTION_FILES is correct).';
+          ? 'This page can’t read the questions file when opened straight from your computer. Open it from GitHub Pages instead: eecastro.github.io/icebreakers'
+          : 'Couldn’t load the questions. Check that icebreaker-questions.txt is in the same folder as index.html in the repo.';
         setQuestion(message, 'note');
       } finally {
         // Turn transitions on after the first paint
